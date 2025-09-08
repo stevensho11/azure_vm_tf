@@ -3,6 +3,6 @@ terraform {
         use_azuread_auth = true
         storage_account_name = "azuretfbasicstfstate"
         container_name = "tfstate"
-        key = "dev.terraform.tfstate"
+        key = "dev.terraform.service.networking.tfstate"
     }
 }
