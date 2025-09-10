@@ -54,4 +54,6 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init -input=false
+        run: doppler run -- terraform init -input=false
+        env:
+          DOPPLER_TOKEN: ${{env.DOPPLER_TOKEN}}
