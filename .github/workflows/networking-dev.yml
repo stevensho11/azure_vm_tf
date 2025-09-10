@@ -65,7 +65,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          doppler run --name-transformer tf-var -- terraform plan \
+          doppler run -- doppler run --name-transformer tf-var -- terraform plan \
             -no-color \
             -out=tfplan
         env:
