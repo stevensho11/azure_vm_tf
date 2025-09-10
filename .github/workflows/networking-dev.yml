@@ -136,3 +136,11 @@ jobs:
       - name: Check Plan Status
         if: steps.plan.outcome == 'failure'
         run: exit 1
+
+      - name: Terraform Apply (on push to main)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          doppler run -- doppler run --name-transformer tf-var -- terraform apply \
+            -input=false -auto-approve tfplan
+        env:
+          DOPPLER_TOKEN: ${{ env.DOPPLER_TOKEN }}
