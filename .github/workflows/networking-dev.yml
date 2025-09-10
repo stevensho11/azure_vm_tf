@@ -1,0 +1,54 @@
+name: networking-dev
+
+on:
+  pull_request:
+    paths: ["service-networking/**"]
+  push:
+    branches: [main]
+    paths: ["service-networking/**"]
+  workflow_dispatch:
+
+jobs:
+  terraform-plan:
+    name: terraform (networking/dev)
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: service-networking/environments/dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Azure Login
+        uses: azure/login@v2.3.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Get doppler token from Key Vault
+        id: keyvault
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            DOPPLER_TOKEN=$(az keyvault secret show --name doppler-token --vault-name ${{secrets.KEYVAULT_NAME}} --query value -o tsv)
+            echo "::add-mask::$DOPPLER_TOKEN"
+            echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
+
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -input=false
