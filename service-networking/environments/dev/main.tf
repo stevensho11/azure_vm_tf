@@ -1,5 +1,5 @@
 module "network" {
-    source = "../../modules/network"
+  source = "../../modules/network"
 }
 
 output "resource_group_name" {
