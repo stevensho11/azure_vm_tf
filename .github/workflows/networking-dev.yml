@@ -47,7 +47,7 @@ jobs:
             echo "::add-mask::$DOPPLER_TOKEN"
             echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
 
-      - name: Terraform fmt
+      - name: Terraform Fmt
         id: fmt
         run: terraform fmt -check
         continue-on-error: true
@@ -55,5 +55,15 @@ jobs:
       - name: Terraform Init
         id: init
         run: doppler run -- terraform init -input=false
+        env:
+          DOPPLER_TOKEN: ${{env.DOPPLER_TOKEN}}
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: doppler run -- terraform plan -no-color -input=false
         env:
           DOPPLER_TOKEN: ${{env.DOPPLER_TOKEN}}
