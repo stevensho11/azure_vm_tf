@@ -1,0 +1,147 @@
+name: vm-dev
+
+on:
+  pull_request:
+    paths: ["service-vm/**"]
+  push:
+    branches: [main]
+    paths: ["service-vm/**"]
+  workflow_dispatch:
+
+jobs:
+  terraform-plan:
+    name: terraform (vm/dev)
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: service-vm/environments/dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Azure Login
+        uses: azure/login@v2.3.0
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Get doppler token from Key Vault
+        id: keyvault
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            DOPPLER_TOKEN=$(az keyvault secret show --name doppler-token --vault-name ${{secrets.KEYVAULT_NAME}} --query value -o tsv)
+            echo "::add-mask::$DOPPLER_TOKEN"
+            echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
+
+      - name: Terraform Fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        run: doppler run -- terraform init -input=false
+        env:
+          DOPPLER_TOKEN: ${{env.DOPPLER_TOKEN}}
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          doppler run -- doppler run --name-transformer tf-var -- terraform plan \
+            -no-color \
+            -out=tfplan
+        env:
+          DOPPLER_TOKEN: ${{env.DOPPLER_TOKEN}}
+
+      - name: Terraform Show Plan
+        id: show-plan
+        run: terraform show tfplan -no-color
+
+      - name: Comment PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.show-plan.outputs.stdout }}"
+        with:
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+            })
+
+            // 2. Prepare format of the comment
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            <details><summary>Validation Output</summary>
+
+            \`\`\`\n
+            ${{ steps.validate.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Run ID: ${{ github.run_id }}, Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, GIT SHA: \`${{ github.event.pull_request.head.sha }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            // 3. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
+
+      - name: Check Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      - name: Terraform Apply (on push to main)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        # funny logic doppler squared! but need this so the backend can get its ARM creds
+        run: |
+          doppler run -- doppler run --name-transformer tf-var -- terraform apply \
+            -input=false -auto-approve tfplan
+        env:
+          DOPPLER_TOKEN: ${{ env.DOPPLER_TOKEN }}
