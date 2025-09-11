@@ -139,6 +139,7 @@ jobs:
 
       - name: Terraform Apply (on push to main)
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        # funny logic doppler squared! but need this so the backend can get its ARM creds
         run: |
           doppler run -- doppler run --name-transformer tf-var -- terraform apply \
             -input=false -auto-approve tfplan
