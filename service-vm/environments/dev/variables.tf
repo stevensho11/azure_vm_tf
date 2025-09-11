@@ -6,5 +6,5 @@ variable "ssh_pub_key" {
 
 variable "test" {
   type = string
-  default = "value"
+  default = "achange"
 }
