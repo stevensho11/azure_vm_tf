@@ -1,16 +1,16 @@
-name: networking-dev
+name: vm-dev
 
 on:
   pull_request:
-    paths: ["service-networking/**"]
+    paths: ["service-vm/**"]
   push:
     branches: [main]
-    paths: ["service-networking/**"]
+    paths: ["service-vm/**"]
   workflow_dispatch:
 
 jobs:
   terraform-plan:
-    name: terraform (networking/dev)
+    name: terraform (vm/dev)
     runs-on: ubuntu-latest
     environment: dev
     permissions:
@@ -20,7 +20,7 @@ jobs:
       pull-requests: write
     defaults:
       run:
-        working-directory: service-networking/environments/dev
+        working-directory: service-vm/environments/dev
 
     steps:
       - uses: actions/checkout@v4

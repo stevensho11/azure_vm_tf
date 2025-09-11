@@ -3,3 +3,8 @@ variable "ssh_pub_key" {
   description = "Public key for the VM"
   sensitive = false
 }
+
+variable "test" {
+  type = string
+  default = "value"
+}
